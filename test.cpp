@@ -36,7 +36,7 @@ bool isValidImage(const std::string& img_path){
 }
 void test_image_recognition(){
     std::vector<std::string> testimgs;
-    std::string sub_folder_path = "/Users/dengfengji/ronnieji/Kaggle/test"; //"/Users/dengfengji/ronnieji/Kaggle/test";
+    std::string sub_folder_path = "/home/ronnieji/ronnieji/Kaggle/test"; //"/Users/dengfengji/ronnieji/Kaggle/test";
     for (const auto& entrySubFolder : std::filesystem::directory_iterator(sub_folder_path)) {  
         if (entrySubFolder.is_regular_file()) {  
             std::string imgFilePath = entrySubFolder.path().string();  
@@ -47,16 +47,19 @@ void test_image_recognition(){
     }
     std::unordered_map<std::string,return_img_info> results;
     cvLib cvl_j;
-    cvl_j.ini_trained_data("/Users/dengfengji/ronnieji/lib/16_16_visual/main/model.dat");//load model.dat before img_recognition
+    cvl_j.ini_trained_data("/home/ronnieji/ronnieji/16_16_visual/main/model.dat");//load model.dat before img_recognition
     cvl_j.img_recognition(
         testimgs,
-        results
+        results,
+		0.5f,
+		0.2f
         );
     if(!results.empty()){
         for(const auto& item : results){
             auto it = item.second;
+			std::chrono::duration<double> time_spent = it.timespent;
             std::cout << item.first << " is a/an: " << it.objName << '\n';
-            std::cout << "Time spent: " << it.timespent << std::endl;
+            std::cout << "Time spent: " << time_spent << std::endl;
         }
     }
 }
@@ -86,8 +89,8 @@ int main(){
      
      cvLib cvl_j;
      cvl_j.train_img_occurrences(
-         "/Users/dengfengji/ronnieji/Kaggle/men_women/train",
-         "/Users/dengfengji/ronnieji/lib/16_16_visual/main/model.dat"
+         "/home/ronnieji/ronnieji/Kaggle/train",
+         "/home/ronnieji/ronnieji/16_16_visual/main/model.dat"
      );     
      test_image_recognition();
 

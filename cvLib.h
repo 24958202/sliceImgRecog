@@ -51,7 +51,7 @@ class cvLib{
             para1: input test image path dataset std::vector<std::string>
             para2: output image recognition result
         */
-        void img_recognition(const std::vector<std::string>&,std::unordered_map<std::string,return_img_info>&);
+        void img_recognition(const std::vector<std::string>&,std::unordered_map<std::string,return_img_info>&,const float, const float);
         /*
          Function to recognize objs in video 
          Facial recognition

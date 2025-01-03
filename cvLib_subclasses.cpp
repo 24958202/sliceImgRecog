@@ -400,7 +400,7 @@ void cvLib_subclasses::sortAndFilterSlices(std::vector<cv::Mat>& outImg, const d
         return;  
     }  
     // Helper function to check if a slice is empty (background)  
-    auto isEmptySlice = [&emptyThreshold](constcv::Mat&img) -> bool {  
+    auto isEmptySlice = [&emptyThreshold](const cv::Mat&img) -> bool {  
         if (img.empty()) return true; // Check if the image is empty  
         cv::Mat gray;  
         if (img.channels() == 3) {  
@@ -440,7 +440,7 @@ void cvLib_subclasses::sortAndFilterSlices(std::vector<cv::Mat>& outImg, const d
     // Step 2: Sort the remaining slices based on similarity  
     if (!outImg.empty()) {  
         const cv::Mat& referenceSlice = outImg[0]; // Use the first slice as the reference  
-        std::sort(outImg.begin(), outImg.end(), [&computeSimilarity, &referenceSlice](constcv::Mat&a,constcv::Mat&b) {  
+        std::sort(outImg.begin(), outImg.end(), [&computeSimilarity, &referenceSlice](const cv::Mat&a,const cv::Mat&b) {  
             return computeSimilarity(referenceSlice, a) > computeSimilarity(referenceSlice, b);  
         });  
     }  
@@ -461,14 +461,14 @@ void cvLib_subclasses::sortByMeanIntensity(std::vector<cv::Mat>& outImg, const d
         return cv::mean(gray)[0];  
     };  
     // Helper function to check if a slice is "empty" (background slice)  
-    auto isEmptySlice = [&computeMeanIntensity, &emptyThreshold](constcv::Mat&img) -> bool {  
+    auto isEmptySlice = [&computeMeanIntensity, &emptyThreshold](const cv::Mat&img) -> bool {  
         double meanIntensity = computeMeanIntensity(img);  
         return meanIntensity < emptyThreshold;  
     };  
     // Step 1: Filter out empty slices  
     outImg.erase(std::remove_if(outImg.begin(), outImg.end(), isEmptySlice), outImg.end());  
     // Step 2: Sort remaining slices in descending order of mean intensity  
-    std::sort(outImg.begin(), outImg.end(), [&computeMeanIntensity](constcv::Mat&a,constcv::Mat&b) {  
+    std::sort(outImg.begin(), outImg.end(), [&computeMeanIntensity](const cv::Mat&a,const cv::Mat&b) {  
         return computeMeanIntensity(a) > computeMeanIntensity(b);  
     });  
 }
