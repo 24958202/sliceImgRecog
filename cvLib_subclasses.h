@@ -43,7 +43,7 @@ class cvLib_subclasses{
          para2: output descriptors
          para3: MAX_FEATURES(default: 1000)
          */
-        std::vector<cv::KeyPoint> extractORBFeatures(const cv::Mat&, cv::Mat&, const unsigned int);
+        std::vector<cv::KeyPoint> extractSIFTFeatures(const cv::Mat&, cv::Mat&, const unsigned int);
         void saveModel_keypoint(const std::unordered_map<std::string, std::vector<cv::Mat>>& featureMap, const std::string& filename);
         /*
           Function to convert cv::KeyPoint to descriptors

@@ -51,7 +51,7 @@ void test_image_recognition(){
     cvl_j.img_recognition(
         testimgs,
         results,
-		0.5f,
+		0.55f,
 		0.2f
         );
     if(!results.empty()){
@@ -93,7 +93,7 @@ int main(){
          "/home/ronnieji/ronnieji/16_16_visual/main/model.dat"
      );     
      test_image_recognition();
-
+	
      //cvl_j.ini_trained_data("/Users/dengfengji/ronnieji/lib/new_cvLib/main/model.dat");
      //cvl_j.start_recording(0);
      
