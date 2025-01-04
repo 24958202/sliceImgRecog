@@ -239,7 +239,6 @@ void train_process(cvLib_subclasses& cvlib_sub, const std::vector<std::string> i
             else{
                 std::cerr << "cvLib::train_img_occurrences trained_img1_counter is empty!" << std::endl;
             }
-            std::cout << sub_folder_name << " is done." << std::endl;
         }//!trained_img1.empty()
     }//for
 }
@@ -252,15 +251,16 @@ void cvLib::train_img_occurrences(const std::string& images_folder_path, const s
     try {  
         std::cout << "Start working..." << std::endl;
         const int numThreads = std::thread::hardware_concurrency();// Use the number of available cores
-		std::cout << "Threads are using: " << numThreads << std::endl;
+		std::cout << "Threads number: " << numThreads << std::endl;
         std::mutex outputMutex;
         for (const auto& entryMainFolder : std::filesystem::directory_iterator(images_folder_path)) {  
             if (entryMainFolder.is_directory()) { // Check if the entry is a directory  
                 std::string sub_folder_name = entryMainFolder.path().filename().string();  
                 std::string sub_folder_path = entryMainFolder.path().string();  
+				std::cout << "sub_folder_name: " << sub_folder_name << std::endl;
+				std::cout << "sub_folder_path: " << sub_folder_path << std::endl;
                 std::vector<std::string> sub_folder_file_list;
                 std::vector<cv::Mat> sub_folder_imgs;
-                std::vector<cv::Mat> unique_images;//removed repeated items from sub_folder_imgs
                 std::cout << "Reading images in folder: " <<  sub_folder_path << std::endl;
                 for (const auto& entrySubFolder : std::filesystem::directory_iterator(sub_folder_path)) {  
                     if (entrySubFolder.is_regular_file()) {  
@@ -287,25 +287,26 @@ void cvLib::train_img_occurrences(const std::string& images_folder_path, const s
                         }
                     }
                     else{ // more than one image-read with multiple-threads
-						int total_file_number = sub_folder_file_list.size();  
-						std::vector<std::thread> threads;  
-						int linesPerThread = total_file_number / numThreads;  
-						std::vector<cv::Mat> trained_final_result;  
-						for (int i = 0; i < numThreads; ++i) {  
-							int startLine = i * linesPerThread;  
-							int endLine = (i == numThreads - 1) ? total_file_number - 1 : (i + 1) * linesPerThread - 1;  
-							std::vector<std::string> thread_images_to_process; // Declare inside the loop  
-							for (int j = startLine; j <= endLine; ++j) {  
-								thread_images_to_process.push_back(sub_folder_file_list[j]);  
-							}  
-							// Ensure thread safety for trained_final_result  
-							threads.emplace_back(train_process, std::ref(cvlib_sub), thread_images_to_process, sub_folder_name, std::ref(trained_final_result), std::ref(outputMutex));  
-						}  
-						for (auto& thread : threads) {  
-							thread.join();  
-						}  
-						// Combine results from all threads  
-						sub_folder_imgs.insert(sub_folder_imgs.end(), trained_final_result.begin(), trained_final_result.end());
+                        int total_file_number = sub_folder_file_list.size();
+                        std::vector<std::thread> threads;
+                        int linesPerThread = total_file_number / numThreads;
+                        std::vector<std::string> thread_images_to_process;
+                        std::vector<cv::Mat> trained_final_result;
+                        for (int i = 0; i < numThreads; ++i) {
+                            int startLine = i * linesPerThread;
+                            int endLine = (i == numThreads - 1) ? total_file_number - 1 : (i + 1) * linesPerThread - 1;
+                            for(int j = 0; j < sub_folder_file_list.size(); ++j){
+                                if(j >= startLine && j <= endLine){
+                                    thread_images_to_process.push_back(sub_folder_file_list[j]);
+                                }
+                            }
+                            threads.emplace_back(train_process,std::ref(cvlib_sub),thread_images_to_process,sub_folder_name,std::ref(trained_final_result),std::ref(outputMutex));
+                        }
+                        for (auto& thread : threads) {
+                            thread.join();
+                        }
+                        sub_folder_imgs.insert(sub_folder_imgs.end(),trained_final_result.begin(),trained_final_result.end());
+
                     }//else{ // more than one image
                 }
                 dataset_keypoint[sub_folder_name] = sub_folder_imgs;
@@ -375,127 +376,120 @@ void cvLib::ini_trained_data(const std::string& model_path){
     }
     loadModel_keypoint(trained_dataset, model_path);
 }
-void cvLib::img_recognition(const std::vector<std::string>& input_images_path, std::unordered_map<std::string, return_img_info>& return_imgs, const float read_rate, const float bad_rate) {
-    // Validate input parameters and trained dataset
-    if (input_images_path.empty()) {
-        std::cerr << "Error: input_images_path is empty!" << std::endl;
-        return;
-    }
-    if (trained_dataset.empty()) {
-        std::cerr << "Error: trained_dataset is empty!" << std::endl;
-        return;
-    }
-    std::cout << "Starting image recognition on " << input_images_path.size() << " input images." << std::endl;
-    // Initialize utility class
-    cvLib_subclasses cvlib_sub;
-    // Loop through each test image path
-    for (const auto& test_item : input_images_path) {
-        return_img_info rii;
-        try {
-            auto t_count_start = std::chrono::high_resolution_clock::now(); // Start timing
-            std::vector<cv::Mat> test_img_slices;
-            cvlib_sub.preprocessImg(test_item,ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT,test_img_slices);
-            if(test_img_slices.empty()){
-                std::cerr << "Error: preprocessImg produced no slices for " << test_item << std::endl;
-                continue;
-            }
-            if(!test_img_slices.empty()){
-                const double emptyThreshold = 12.0;     // Below this intensity means it's background
-                //const double similarityThreshold = 0.5; // (Optional for filtering similar slices)
-                cvlib_sub.sortByMeanIntensity(test_img_slices,emptyThreshold);
-                /*
-                 * Start recognizing 
-                 */
-                unsigned int first_num = static_cast<unsigned int>(read_rate * test_img_slices.size());
-				unsigned int bad_num = static_cast<unsigned int>(bad_rate * test_img_slices.size());
-                unsigned int slice_count = 0;
-                unsigned int bad_fish_split_out = 0;
-                std::unordered_map<std::string,unsigned int> test_slices_totally_count;
-                for(int kk = 0; kk < test_img_slices.size(); ++kk){
-                    std::unordered_map<std::string,unsigned int> score_count;
-                    // Use ORB for keypoint detection and description
-                    std::vector<cv::KeyPoint> keypoints1;  
-                    cv::Mat descriptors1;  
-                    keypoints1 = cvlib_sub.extractORBFeatures(test_img_slices[kk],descriptors1, MAX_FEATURES);
-                    if(descriptors1.empty()){
-                        continue;
-                    }
-                    slice_count++;
-                    if(slice_count > first_num){
-						slice_count=0;
-                        break;
-                    }
-                    for(const auto& item : trained_dataset){
-                        auto item_data = item.second;
-                        for(const auto item_data_item : item_data){
-                            // Use ORB for keypoint detection and description
-                            std::vector<cv::KeyPoint> keypoints2;  
-                            cv::Mat descriptors2;  
-                            keypoints2 = cvlib_sub.extractORBFeatures(item_data_item,descriptors2, MAX_FEATURES);
-                            if (descriptors2.empty()) {
-                                continue;
-                            }
-                            /*
-                             *Start comparing
-                            */
-                            cv::BFMatcher matcher(cv::NORM_L2);
-                            std::vector<std::vector<cv::DMatch>> knnMatches;
-                            matcher.knnMatch(descriptors1, descriptors2, knnMatches, 2);
-                            std::vector<cv::DMatch> goodMatches;
-                            for (const auto& match : knnMatches) {
-                                if (match.size() > 1 && match[0].distance < RATIO_THRESH * match[1].distance) {
-                                    goodMatches.push_back(match[0]);
-                                }
-                            }
-                            if (goodMatches.size() > DE_THRESHOLD) {
-                                score_count[item.first]++;
-                            }
-                            else{
-                                bad_fish_split_out++;
-                                if(bad_fish_split_out > bad_num){
-									//std::cout << item.first << " was not matched with current test slice.Exit." << std::endl;
-                                    bad_fish_split_out = 0;
-                                    break; // Break out of the inner loop
-                                }
-                            }
-                        }
-                    }
-                    /*
-                     *  Count and sort the result 
-                     */
-                    std::vector<std::pair<std::string, unsigned int>> sorted_score_counting(score_count.begin(), score_count.end());
-                    // Sort the vector of pairs
-                    std::sort(sorted_score_counting.begin(), sorted_score_counting.end(), [](const auto& a, const auto& b) {
-                        return a.second > b.second;
-                    });
-                    if (!sorted_score_counting.empty()) {
-                        auto it = sorted_score_counting.begin();
-                        test_slices_totally_count[it->first]++;
-                    }
-                }
-                std::vector<std::pair<std::string, unsigned int>> sorted_final_test_score_counting(test_slices_totally_count.begin(), test_slices_totally_count.end());
-                // Sort the vector of pairs
-                std::sort(sorted_final_test_score_counting.begin(), sorted_final_test_score_counting.end(), [](const auto& a, const auto& b) {
-                    return a.second > b.second;
-                });
-                if (!sorted_final_test_score_counting.empty()) {
-                    auto it = sorted_final_test_score_counting.begin();
-                    rii.objName = it->first;
-                } else {
-                    std::cerr << "Error: No matches found for test image " << test_item << std::endl;
-                    rii.objName = "Unknown";
-                }
-            }
-            auto t_count_end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> timespent = t_count_end - t_count_start;
-            rii.timespent = timespent;
-            return_imgs[test_item] = rii;
-        } catch (const std::exception& e) {
-            std::cerr << "Exception occurred while processing " << test_item << ": " << e.what() << std::endl;
-            continue; // Skip to the next image
-        }
-    }
-    std::cout << "Image recognition completed!" << std::endl;
+void cvLib::img_recognition(const std::vector<std::string>& input_images_path, std::unordered_map<std::string, return_img_info>& return_imgs, const float read_rate, const float bad_rate) {  
+    // Validate input parameters and trained dataset  
+    if (input_images_path.empty()) {  
+        std::cerr << "Error: input_images_path is empty!" << std::endl;  
+        return;  
+    }  
+    if (trained_dataset.empty()) {  
+        std::cerr << "Error: trained_dataset is empty!" << std::endl;  
+        return;  
+    }  
+    std::cout << "Starting image recognition on " << input_images_path.size() << " input images." << std::endl;  
+    // Initialize utility class  
+    cvLib_subclasses cvlib_sub;  
+    // Loop through each test image path  
+    for (const auto& test_item : input_images_path) {  
+        return_img_info rii;  
+        try {  
+            auto t_count_start = std::chrono::high_resolution_clock::now(); // Start timing  
+            std::vector<cv::Mat> test_img_slices;  
+            cvlib_sub.preprocessImg(test_item, ReSIZE_IMG_WIDTH, ReSIZE_IMG_HEIGHT, test_img_slices);  
+            if (test_img_slices.empty()) {  
+                std::cerr << "Error: preprocessImg produced no slices for " << test_item << std::endl;  
+                continue;  
+            }  
+            const double emptyThreshold = 10.0; // Below this intensity means it's background  
+            cvlib_sub.sortByMeanIntensity(test_img_slices, emptyThreshold);  
+            /*  
+             * Start recognizing   
+             */  
+            unsigned int first_num = static_cast<unsigned int>(read_rate * test_img_slices.size());  
+            unsigned int bad_num = static_cast<unsigned int>(bad_rate * test_img_slices.size());  
+            unsigned int slice_count = 0;  
+            std::unordered_map<std::string, unsigned int> test_slices_totally_count;  
+            for (int kk = 0; kk < test_img_slices.size(); ++kk) {  
+                std::unordered_map<std::string, unsigned int> score_count;  
+                // Use ORB for keypoint detection and description  
+                cv::Mat descriptors1;  
+                auto keypoints1 = cvlib_sub.extractORBFeatures(test_img_slices[kk], descriptors1, MAX_FEATURES);  
+                if (descriptors1.empty()) {  
+                    continue;  
+                }  
+                slice_count++;  
+                if (slice_count > first_num) {  
+                    slice_count = 0;  
+                    break;  
+                }  
+				unsigned int bad_fish_split_out = 0;  
+                for (const auto& item : trained_dataset) {  
+                    auto item_data = item.second;  
+                    for (const auto& item_data_item : item_data) {  
+                        // Use ORB for keypoint detection and description  
+                        cv::Mat descriptors2;  
+                        auto keypoints2 = cvlib_sub.extractORBFeatures(item_data_item, descriptors2, MAX_FEATURES);  
+                        if (descriptors2.empty()) {  
+                            continue;  
+                        }  
+                        /*  
+                         * Start comparing  
+                         */  
+                        cv::BFMatcher matcher(cv::NORM_L2);  
+                        std::vector<std::vector<cv::DMatch>> knnMatches;  
+                        matcher.knnMatch(descriptors1, descriptors2, knnMatches, 2);  
+                        std::vector<cv::DMatch> goodMatches;  
+                        for (const auto& match : knnMatches) {  
+                            if (match.size() > 1 && match[0].distance < RATIO_THRESH * match[1].distance) {  
+                                goodMatches.push_back(match[0]);  
+                            }  
+                        }  
+                        if (goodMatches.size() > DE_THRESHOLD) {  
+                            score_count[item.first]++;  
+                        } else {  
+                            bad_fish_split_out++;  
+                            if (bad_fish_split_out > bad_num) {  
+                                bad_fish_split_out = 0;  
+                                break; // Break out of the inner loop  
+                            }  
+                        }  
+                    }  
+                }  
+                /*  
+                 * Count and sort the result   
+                 */  
+                std::vector<std::pair<std::string, unsigned int>> sorted_score_counting(score_count.begin(), score_count.end());  
+                // Sort the vector of pairs  
+                std::sort(sorted_score_counting.begin(), sorted_score_counting.end(), [](const auto& a, const auto& b) {  
+                    return a.second > b.second;  
+                });  
+                if (!sorted_score_counting.empty()) {  
+                    auto it = sorted_score_counting.begin();  
+                    test_slices_totally_count[it->first]++;  
+                }  
+            }  
+            std::vector<std::pair<std::string, unsigned int>> sorted_final_test_score_counting(test_slices_totally_count.begin(), test_slices_totally_count.end());  
+            // Sort the vector of pairs  
+            std::sort(sorted_final_test_score_counting.begin(), sorted_final_test_score_counting.end(), [](const auto& a, const auto& b) {  
+                return a.second > b.second;  
+            });  
+            if (!sorted_final_test_score_counting.empty()) {  
+                auto it = sorted_final_test_score_counting.begin();  
+                rii.objName = it->first;  
+            } else {  
+                std::cerr << "Error: No matches found for test image " << test_item << std::endl;  
+                rii.objName = "Unknown";  
+            }  
+            auto t_count_end = std::chrono::high_resolution_clock::now();  
+            std::chrono::duration<double> timespent = t_count_end - t_count_start;  
+            rii.timespent = timespent;  
+            return_imgs[test_item] = rii;  
+        } catch (const std::exception& e) {  
+            std::cerr << "Exception occurred while processing " << test_item << ": " << e.what() << std::endl;  
+            continue; // Skip to the next image  
+        }  
+    }  
+    std::cout << "Image recognition completed!" << std::endl;  
 }
 void cvLib::checkExistingGestures(const cv::Mat& frame_input, std::string& gesture_catched){
     if(frame_input.empty()){

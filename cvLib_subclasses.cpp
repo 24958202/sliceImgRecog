@@ -138,45 +138,54 @@ void cvLib_subclasses::compressJPEG(const std::string& inputFilename, const std:
     delete[] buffer;
     std::cout << "JPEG image compressed and saved to " << outputFilename << std::endl;
 }
-void cvLib_subclasses::preprocessImg(const std::string& img_path, const unsigned int ReSIZE_IMG_WIDTH, const unsigned int ReSIZE_IMG_HEIGHT, std::vector<cv::Mat>& outImg) {
-    if (img_path.empty()) {
-        std::cerr << "Error: img_path is empty." << std::endl;
-        return;
-    }
-    try {
-        // Load the image
-        cv::Mat img = cv::imread(img_path, cv::IMREAD_COLOR);
-        if (img.empty()) {
-            std::cerr << "Error: Image not loaded correctly from path: " << img_path << std::endl;
-            return; // Handle the error appropriately
-        }
-        // Resize the image
-        cv::Mat resizeImg;
-        cv::resize(img, resizeImg, cv::Size(ReSIZE_IMG_WIDTH, ReSIZE_IMG_HEIGHT));
-        // Convert to grayscale
-        cv::Mat img_gray;
-        cv::cvtColor(resizeImg, img_gray, cv::COLOR_BGR2GRAY);
-        // Apply Gaussian Blur
-        cv::Mat blurredImg;
-        cv::GaussianBlur(img_gray, blurredImg, cv::Size(5, 5), 0);
-        // Define the size of slices
-        const int sliceWidth = 64;
-        const int sliceHeight = 64;
-        // Iterate and slice the image into 16x16 pieces
-        for (int y = 0; y <= blurredImg.rows - sliceHeight; y += sliceHeight) {
-            for (int x = 0; x <= blurredImg.cols - sliceWidth; x += sliceWidth) {
-                cv::Rect sliceArea(x, y, sliceWidth, sliceHeight);
-                cv::Mat slice = blurredImg(sliceArea); // Create a slice
-                outImg.push_back(slice); // Store slice in output vector
-            }
-        }
-    } catch (const cv::Exception& ex) {
-        std::cerr << "OpenCV Error: " << ex.what() << std::endl;
-    } catch (const std::exception& ex) {
-        std::cerr << "Standard Error: " << ex.what() << std::endl;
-    } catch (...) {
-        std::cerr << "cvLib::subclasses::preprocessImg Unknown errors" << std::endl;
-    }
+void cvLib_subclasses::preprocessImg(const std::string& img_path, const unsigned int ReSIZE_IMG_WIDTH, const unsigned int ReSIZE_IMG_HEIGHT, std::vector<cv::Mat>& outImg) {  
+    if (img_path.empty()) {  
+        std::cerr << "Error: img_path is empty." << std::endl;  
+        return;  
+    }  
+    try {  
+        outImg.clear();  
+        // Load the image  
+        cv::Mat img = cv::imread(img_path, cv::IMREAD_COLOR);  
+        if (img.empty()) {  
+            std::cerr << "Error: Image not loaded correctly from path: " << img_path << std::endl;  
+            return; // Handle the error appropriately  
+        }  
+        // Resize the image  
+        cv::Mat resizeImg;  
+        cv::resize(img, resizeImg, cv::Size(ReSIZE_IMG_WIDTH, ReSIZE_IMG_HEIGHT));  
+        // Check if resized image is smaller than slice size  
+        if (resizeImg.cols < 64 || resizeImg.rows < 64) {  
+            std::cerr << "Error: Resized image is smaller than slice size (64x64)." << std::endl;  
+            return;  
+        }  
+        // Convert to grayscale  
+        cv::Mat img_gray;  
+        cv::cvtColor(resizeImg, img_gray, cv::COLOR_BGR2GRAY);  
+        // Apply Gaussian Blur  
+        cv::Mat blurredImg;  
+        cv::GaussianBlur(img_gray, blurredImg, cv::Size(5, 5), 0);  
+        // Define the size of slices  
+        const int sliceWidth = 64;  
+        const int sliceHeight = 64;  
+        // Iterate and slice the image into 64x64 pieces  
+        for (int y = 0; y <= blurredImg.rows - sliceHeight; y += sliceHeight) {  
+            for (int x = 0; x <= blurredImg.cols - sliceWidth; x += sliceWidth) {  
+                cv::Rect sliceArea(x, y, sliceWidth, sliceHeight);  
+                // Ensure the slice area is valid  
+                if (sliceArea.x + sliceArea.width <= blurredImg.cols && sliceArea.y + sliceArea.height <= blurredImg.rows) {  
+                    cv::Mat slice = blurredImg(sliceArea); // Create a slice  
+                    outImg.push_back(slice); // Store slice in output vector  
+                }  
+            }  
+        }  
+    } catch (const cv::Exception& ex) {  
+        std::cerr << "OpenCV Error: " << ex.what() << std::endl;  
+    } catch (const std::exception& ex) {  
+        std::cerr << "Standard Error: " << ex.what() << std::endl;  
+    } catch (...) {  
+        std::cerr << "cvLib::subclasses::preprocessImg Unknown errors" << std::endl;  
+    }  
 }
 void cvLib_subclasses::preprocessImg_gray(cv::Mat& img, const unsigned int ReSIZE_IMG_WIDTH, const unsigned int ReSIZE_IMG_HEIGHT) {
     if (img.empty()) {
@@ -203,7 +212,6 @@ void cvLib_subclasses::preprocessImg_gray(cv::Mat& img, const unsigned int ReSIZ
         std::cerr << "cvLib::subclasses::preprocessImg Unknown errors" << std::endl;
     }
 }
-
 std::vector<cv::KeyPoint> cvLib_subclasses::extractORBFeatures(const cv::Mat& img, cv::Mat& descriptors, const unsigned int MAX_FEATURES){
     std::vector<cv::KeyPoint> keypoints_input;
     if(img.empty()){
