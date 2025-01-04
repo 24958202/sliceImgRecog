@@ -143,6 +143,10 @@ void cvLib_subclasses::preprocessImg(const std::string& img_path, const unsigned
         std::cerr << "Error: img_path is empty." << std::endl;  
         return;  
     }  
+	if (ReSIZE_IMG_WIDTH == 0 || ReSIZE_IMG_HEIGHT == 0) {  
+        std::cerr << "Error: Invalid resize dimensions." << std::endl;  
+        return;  
+    }  
     try {  
         outImg.clear();  
         // Load the image  
@@ -212,7 +216,7 @@ void cvLib_subclasses::preprocessImg_gray(cv::Mat& img, const unsigned int ReSIZ
         std::cerr << "cvLib::subclasses::preprocessImg Unknown errors" << std::endl;
     }
 }
-std::vector<cv::KeyPoint> cvLib_subclasses::extractORBFeatures(const cv::Mat& img, cv::Mat& descriptors, const unsigned int MAX_FEATURES){
+std::vector<cv::KeyPoint> cvLib_subclasses::extractSIFTFeatures(const cv::Mat& img, cv::Mat& descriptors, const unsigned int MAX_FEATURES){
     std::vector<cv::KeyPoint> keypoints_input;
     if(img.empty()){
         return keypoints_input;
@@ -337,8 +341,8 @@ bool cvLib_subclasses::img1_img2_are_matched(const std::string& img1, const std:
         // Use ORB for keypoint detection and description
         std::vector<cv::KeyPoint> keypoints1, keypoints2;  
         cv::Mat descriptors1, descriptors2;  
-        keypoints1 = extractORBFeatures(img_input1,descriptors1, MAX_FEATURES);
-        keypoints2 = extractORBFeatures(img_input2,descriptors2, MAX_FEATURES);
+        keypoints1 = extractSIFTFeatures(img_input1,descriptors1, MAX_FEATURES);
+        keypoints2 = extractSIFTFeatures(img_input2,descriptors2, MAX_FEATURES);
         if (descriptors1.empty() || descriptors2.empty()) {
             std::cerr << "cvLib_subclasses::img1_img2_are_matched Existing m_img1 or m_img2 has no descriptors." << std::endl;
             return false;
@@ -369,19 +373,24 @@ bool cvLib_subclasses::img1_img2_are_matched(const std::string& img1, const std:
         std::cerr << "Standard Exception: " << ex.what() << std::endl;
     }
     catch (...) {
-        std::cerr << "Unknown error in cvLib::subclasses::computeDescriptors" << std::endl;
+        std::cerr << "Unknown error in cvLib::subclasses::img1_img2_are_matched" << std::endl;
     }
 }
-bool cvLib_subclasses::img1_img2_are_matched_cvMat(const cv::Mat& img1, const cv::Mat& img2, const unsigned int DE_THRESHOLD, const unsigned int MAX_FEATURES, const unsigned int ReSIZE_IMG_WIDTH, const unsigned int ReSIZE_IMG_HEIGHT, const float RATIO_THRESH){
+bool cvLib_subclasses::img1_img2_are_matched_cvMat(const cv::Mat& img1, const cv::Mat& img2, const unsigned int DE_THRESHOLD, 
+const unsigned int MAX_FEATURES, const unsigned int ReSIZE_IMG_WIDTH, const unsigned int ReSIZE_IMG_HEIGHT, const float RATIO_THRESH){
     if (img1.empty() || img2.empty()) {  
         std::cerr << "Images input are empty." << std::endl;  
         return false;  
     }  
+	cv::Mat img1_resized;
+	cv::Mat img2_resized;
+	cv::resize(img1, img1_resized, cv::Size(ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT));
+	cv::resize(img2, img2_resized, cv::Size(ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT));
     // Use ORB for keypoint detection and description
     std::vector<cv::KeyPoint> keypoints1, keypoints2;  
     cv::Mat descriptors1, descriptors2;  
-    keypoints1 = extractORBFeatures(img1,descriptors1, MAX_FEATURES);
-    keypoints2 = extractORBFeatures(img2,descriptors2, MAX_FEATURES);
+    keypoints1 = extractSIFTFeatures(img1_resized,descriptors1, MAX_FEATURES);
+    keypoints2 = extractSIFTFeatures(img2_resized,descriptors2, MAX_FEATURES);
     if (descriptors1.empty() || descriptors2.empty()) {
         //std::cerr << "img1_img2_are_matched_cvMat Existing m_img1 or m_img2 has no descriptors." << std::endl;
         return false;

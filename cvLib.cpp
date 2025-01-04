@@ -147,7 +147,7 @@ void cvLib::img_compress(const std::string& input_folder,int quality){
     std::cout << "All jobs are done!" << std::endl;
 }
 void train_process(cvLib_subclasses& cvlib_sub, const std::vector<std::string> img_process, const std::string& sub_folder_name, std::vector<cv::Mat>& sub_folder_imgs, std::mutex& outputMutex){
-    if(img_process.empty() || sub_folder_name.empty()){
+	if(img_process.empty() || sub_folder_name.empty()){
         return;
     }
     for(unsigned int i = 0; i < img_process.size(); ++i){
@@ -202,7 +202,7 @@ void train_process(cvLib_subclasses& cvlib_sub, const std::vector<std::string> i
                      std::cout << "Evaluating image collections..." << std::endl;
                      for(auto it = sortedFreq.begin(); it != sortedFreq.end();){
                         cv::Mat eval_descriptors;
-                        std::vector<cv::KeyPoint> trained_key = cvlib_sub.extractORBFeatures(trained_img1[it->first],eval_descriptors,MAX_FEATURES);
+                        std::vector<cv::KeyPoint> trained_key = cvlib_sub.extractSIFTFeatures(trained_img1[it->first],eval_descriptors,MAX_FEATURES);
                         if (eval_descriptors.empty()) {
                             std::cerr << "Removing bad image at index: " << std::to_string(check_num) << std::endl;
                             it = sortedFreq.erase(it);
@@ -256,7 +256,7 @@ void cvLib::train_img_occurrences(const std::string& images_folder_path, const s
         for (const auto& entryMainFolder : std::filesystem::directory_iterator(images_folder_path)) {  
             if (entryMainFolder.is_directory()) { // Check if the entry is a directory  
                 std::string sub_folder_name = entryMainFolder.path().filename().string();  
-                std::string sub_folder_path = entryMainFolder.path().string();  
+                std::string sub_folder_path = entryMainFolder.path().string(); 
 				std::cout << "sub_folder_name: " << sub_folder_name << std::endl;
 				std::cout << "sub_folder_path: " << sub_folder_path << std::endl;
                 std::vector<std::string> sub_folder_file_list;
@@ -265,6 +265,9 @@ void cvLib::train_img_occurrences(const std::string& images_folder_path, const s
                 for (const auto& entrySubFolder : std::filesystem::directory_iterator(sub_folder_path)) {  
                     if (entrySubFolder.is_regular_file()) {  
                         std::string imgFilePath = entrySubFolder.path().string(); 
+						if(imgFilePath.find("._") != std::string::npos){//file format from Mac
+							continue;
+						}
                         std::cout << "Adding image: " << imgFilePath << " to the list." << std::endl;
                         if(cvlib_sub.isValidImage(imgFilePath)){
                            sub_folder_file_list.push_back(imgFilePath);
@@ -280,6 +283,7 @@ void cvLib::train_img_occurrences(const std::string& images_folder_path, const s
                         std::vector<cv::Mat> trained_img;
                         cvlib_sub.preprocessImg(sub_folder_file_list[0],ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT,trained_img);
                         if(!trained_img.empty()){
+							cvlib_sub.sortByMeanIntensity(trained_img,10);//sortByMeanIntensity
                             sub_folder_imgs.insert(sub_folder_imgs.end(),trained_img.begin(),trained_img.end());
                         }
                         else{
@@ -289,23 +293,28 @@ void cvLib::train_img_occurrences(const std::string& images_folder_path, const s
                     else{ // more than one image-read with multiple-threads
                         int total_file_number = sub_folder_file_list.size();
                         std::vector<std::thread> threads;
+						std::vector<cv::Mat> trained_final_result;
                         int linesPerThread = total_file_number / numThreads;
                         std::vector<std::string> thread_images_to_process;
-                        std::vector<cv::Mat> trained_final_result;
                         for (int i = 0; i < numThreads; ++i) {
                             int startLine = i * linesPerThread;
-                            int endLine = (i == numThreads - 1) ? total_file_number - 1 : (i + 1) * linesPerThread - 1;
-                            for(int j = 0; j < sub_folder_file_list.size(); ++j){
-                                if(j >= startLine && j <= endLine){
-                                    thread_images_to_process.push_back(sub_folder_file_list[j]);
-                                }
-                            }
-                            threads.emplace_back(train_process,std::ref(cvlib_sub),thread_images_to_process,sub_folder_name,std::ref(trained_final_result),std::ref(outputMutex));
+                            int endLine = (i == numThreads - 1) ? total_file_number : (i + 1) * linesPerThread; 
+							threads.emplace_back([&, startLine, endLine, i]() {  
+								std::vector<cv::Mat> local_trained_result;  
+								train_process(cvlib_sub, std::vector<std::string>(sub_folder_file_list.begin() + startLine, sub_folder_file_list.begin() + endLine), sub_folder_name, local_trained_result, outputMutex);  
+								if(!local_trained_result.empty()){
+									trained_final_result.insert(trained_final_result.end(),local_trained_result.begin(),local_trained_result.end()); 
+								}
+								else{
+									std::cout << images_folder_path << ": local_trained_result is empty!" << std::endl;
+								}
+                            });  
                         }
                         for (auto& thread : threads) {
                             thread.join();
                         }
-                        sub_folder_imgs.insert(sub_folder_imgs.end(),trained_final_result.begin(),trained_final_result.end());
+						// Merge results from all threads  
+                        sub_folder_imgs.insert(sub_folder_imgs.end(), trained_final_result.begin(), trained_final_result.end());  
 
                     }//else{ // more than one image
                 }
@@ -413,7 +422,7 @@ void cvLib::img_recognition(const std::vector<std::string>& input_images_path, s
                 std::unordered_map<std::string, unsigned int> score_count;  
                 // Use ORB for keypoint detection and description  
                 cv::Mat descriptors1;  
-                auto keypoints1 = cvlib_sub.extractORBFeatures(test_img_slices[kk], descriptors1, MAX_FEATURES);  
+                auto keypoints1 = cvlib_sub.extractSIFTFeatures(test_img_slices[kk], descriptors1, MAX_FEATURES);  
                 if (descriptors1.empty()) {  
                     continue;  
                 }  
@@ -428,7 +437,7 @@ void cvLib::img_recognition(const std::vector<std::string>& input_images_path, s
                     for (const auto& item_data_item : item_data) {  
                         // Use ORB for keypoint detection and description  
                         cv::Mat descriptors2;  
-                        auto keypoints2 = cvlib_sub.extractORBFeatures(item_data_item, descriptors2, MAX_FEATURES);  
+                        auto keypoints2 = cvlib_sub.extractSIFTFeatures(item_data_item, descriptors2, MAX_FEATURES);  
                         if (descriptors2.empty()) {  
                             continue;  
                         }  
@@ -504,7 +513,7 @@ void cvLib::checkExistingGestures(const cv::Mat& frame_input, std::string& gestu
     std::vector<std::pair<std::string, unsigned int>> score_count;
     try {
         cv::Mat resizeImg;
-        cv::resize(frame_input, resizeImg, cv::Size(ReSIZE_IMG_WIDTH, ReSIZE_IMG_HEIGHT));
+        cv::resize(frame_input, resizeImg, cv::Size(ReSIZE_IMG_WIDTH, ReSIZE_IMG_HEIGHT));//$$$$$$$$$$$$
         cv::Mat img_gray;
         cv::cvtColor(resizeImg, img_gray, cv::COLOR_BGR2GRAY);
         cv::GaussianBlur(img_gray, test_img, cv::Size(5, 5), 0);
@@ -521,7 +530,7 @@ void cvLib::checkExistingGestures(const cv::Mat& frame_input, std::string& gestu
     }
     cvLib_subclasses cvlib_sub;
     cv::Mat test_descriptors;
-    std::vector<cv::KeyPoint> sub_key = cvlib_sub.extractORBFeatures(test_img, test_descriptors,MAX_FEATURES);
+    std::vector<cv::KeyPoint> sub_key = cvlib_sub.extractSIFTFeatures(test_img, test_descriptors,MAX_FEATURES);
     if (test_descriptors.empty()) {
         std::cerr << "cvLib::img_recognition: test_img->descriptors is empty!" << std::endl;
         return; // Skip if no descriptors are found
@@ -530,7 +539,7 @@ void cvLib::checkExistingGestures(const cv::Mat& frame_input, std::string& gestu
         auto item_collections = item.second;
         for (const auto& trained_item : item_collections) {
             cv::Mat trained_descriptors;
-            std::vector<cv::KeyPoint> trained_key = cvlib_sub.extractORBFeatures(trained_item, trained_descriptors,MAX_FEATURES);
+            std::vector<cv::KeyPoint> trained_key = cvlib_sub.extractSIFTFeatures(trained_item, trained_descriptors,MAX_FEATURES);
             if (trained_descriptors.empty()) {
                 std::cerr << "Warning: trained descriptors are empty for trained_item." << std::endl;
                 continue; // Skip this trained item if no descriptors found
