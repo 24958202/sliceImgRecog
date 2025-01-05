@@ -97,6 +97,34 @@ class cvLib_subclasses{
          * para2: emptyThreshold
 		 */
 		void sortByMeanIntensity(std::vector<cv::Mat>&, const double);
+		/*
+		 * Function to detect object's position according to the const std::vector<int>& selectedSlices
+		 * para1: const std::vector<int>& selectedSlices, 
+		 * if an image was divided by 100 pieces (10x10),  gridSize = 10, matrix_size = 100;
+		 * para2: gridSize 
+		 * para3: matrix_size
+		 * 
+		 */
+		std::vector<cv::Rect> detectClusters(const std::vector<int>&, int, int);\
+		/*
+		 * Function to mark objects according to the slices index
+			para1: original image, much be resize to ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT
+			para2: gridSize
+			para3: the slices of the object detected 
+			para4: the slices of the object's name (first value= object's name, second value = slice index)
+		 */
+		void markClusters(cv::Mat&, int, const std::vector<cv::Rect>&, const std::vector<std::pair<std::string, unsigned int>>&);
+		/*
+		 * Function to pass slices of image, objects in the image to above functions to mark.
+		   para1: original image , much be resize to ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT
+		   para2: image slices with objects detection mark, first value = image slice, second value = object mark
+		   para3: object names with its related image slice index
+		   if an image was divided by 100 pieces (10x10),  gridSize = 10, matrix_size = 100;
+		   para4: gridSize
+		   para4: matrix_size
+		 */
+		void detect_obj_and_draw(cv::Mat&, const std::vector<std::pair<cv::Mat, unsigned int>>&,  
+                          const std::vector<std::pair<std::string, unsigned int>>&, int, int);
         
 };
 
@@ -104,3 +132,34 @@ class cvLib_subclasses{
 }
 #endif
 #endif
+/*
+	std::vector<cv::Mat> slice_the_image;  
+    preprocessImg("/home/ronnieji/ronnieji/Kaggle/train/panda/496bd52415.jpg", 448, 448, slice_the_image);  
+    if (slice_the_image.empty()) {  
+        std::cerr << "Slices dataset is empty!" << std::endl;  
+        return -1;  
+    }  
+    // Example usage  
+    std::vector<std::pair<cv::Mat, unsigned int>> imgSlices(slice_the_image.size());  
+    // Load your slices into imgSlices...  
+    for (size_t i = 0; i < slice_the_image.size(); ++i) {  
+        unsigned int score = (i == 2 || i == 3 || i == 12 || i == 13 || i == 5 || i == 6 || i == 15 || i == 16) ? 1 : 0; // Set score based on condition  
+        imgSlices[i] = {slice_the_image[i], score}; // Assign the slice and its score  
+    }  
+    // Create object names based on slice indices  
+    std::vector<std::pair<std::string, unsigned int>> obj_names = {  
+        {"Apple", 2}, {"Apple", 3}, {"Banana", 5}, {"Banana", 6},  
+        {"Apple", 12}, {"Apple", 13}, {"Banana", 15}, {"Banana", 16}  
+    };  
+    cv::Mat img = cv::imread("/home/ronnieji/ronnieji/Kaggle/train/panda/496bd52415.jpg", cv::IMREAD_COLOR);  
+    if (img.empty()) {  
+        std::cerr << "Error: Image not loaded correctly from path!" << std::endl;  
+        return -1; // Handle the error appropriately  
+    }  
+    // Resize the image  
+    cv::Mat resizeImg;  
+    cv::resize(img, resizeImg, cv::Size(448, 448));    
+    // Call the function  
+    detect_obj_and_draw(resizeImg, imgSlices, obj_names, 64, 448); // Pass the slice size (64 for 64x64 slices)  
+    return 0;  
+ * */

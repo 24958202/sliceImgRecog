@@ -489,3 +489,116 @@ void cvLib_subclasses::sortByMeanIntensity(std::vector<cv::Mat>& outImg, const d
         return computeMeanIntensity(a) > computeMeanIntensity(b);  
     });  
 }
+std::vector<cv::Rect> cvLib_subclasses::detectClusters(const std::vector<int>& selectedSlices, int gridSize, int matrix_size) {  
+	std::vector<cv::Rect> clusters; 
+	if(selectedSlices.empty()){
+		return clusters;
+	}
+    std::set<int> visited;  
+	try{
+		for (int slice : selectedSlices) {  
+			if (visited.find(slice) != visited.end()) {  
+				continue; // Already processed this slice  
+			}  
+			// Start a new cluster  
+			int minRow = slice / gridSize;  
+			int maxRow = minRow;  
+			int minCol = slice % gridSize;  
+			int maxCol = minCol;  
+			// Check for adjacent slices  
+			for (int i = 0; i < selectedSlices.size(); ++i) {  
+				int currentSlice = selectedSlices[i];  
+				if (visited.find(currentSlice) != visited.end()) {  
+					continue; // Already processed this slice  
+				}  
+				int currentRow = currentSlice / gridSize;  
+				int currentCol = currentSlice % gridSize;  
+				// Check if the current slice is adjacent (including diagonals)  
+				if (std::abs(currentRow - minRow) <= 1 && std::abs(currentCol - minCol) <= 1) {  
+					visited.insert(currentSlice);  
+					minRow = std::min(minRow, currentRow);  
+					maxRow = std::max(maxRow, currentRow);  
+					minCol = std::min(minCol, currentCol);  
+					maxCol = std::max(maxCol, currentCol);  
+				}  
+			}  
+			// Create a rectangle for the cluster  
+			clusters.emplace_back(cv::Point(minCol * matrix_size, minRow * matrix_size), cv::Point((maxCol + 1) * matrix_size, (maxRow + 1) * matrix_size));  
+		}  
+	}
+	catch(const std::exception& ex){
+		std::cerr << ex.what() << std::endl;
+	}
+	catch(...){
+		std::cerr << "cvLib_subclasses::detectClusters: Unknown errors" << std::endl; 
+	}
+    return clusters;  
+} 
+void cvLib_subclasses::markClusters(cv::Mat& image, int gridSize, const std::vector<cv::Rect>& clusters, const std::vector<std::pair<std::string, unsigned int>>& obj_names) {  
+	if(clusters.empty() || obj_names.empty() || gridSize == 0){
+		return;
+	}
+    for (const auto& cluster : clusters) {  
+        cv::rectangle(image, cluster, cv::Scalar(0, 255, 0), 2); // Draw green rectangle  
+
+        // Find the corresponding object name based on the cluster's position  
+        for (const auto& obj : obj_names) {  
+            // Check if the cluster corresponds to the object's index  
+            if (cluster.x / 64 == obj.second % gridSize && cluster.y / 64 == obj.second / gridSize) {  
+                // Put text on the upper-left corner of the rectangle  
+                cv::putText(image, obj.first, // Object name  
+                            cv::Point(cluster.x + 5, cluster.y + 20), // Position of the text  
+                            cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1); // Green color  
+                break; // Exit the loop once the object is found  
+            }  
+        }  
+    }  
+}  
+void cvLib_subclasses::detect_obj_and_draw(cv::Mat& original_img, const std::vector<std::pair<cv::Mat, unsigned int>>& input_img,  
+                          const std::vector<std::pair<std::string, unsigned int>>& obj_names, int gridSize, int matrix_size) {  
+    std::vector<int> selectedSlices;  
+    // Collect indices of slices with a score greater than 0  
+    for (size_t i = 0; i < input_img.size(); ++i) {  
+        if (input_img[i].second > 0) {  
+            selectedSlices.push_back(static_cast<int>(i));  
+        }  
+    }  
+    // Detect clusters  
+    std::vector<cv::Rect> clusters = detectClusters(selectedSlices, gridSize, matrix_size);  
+    // Mark clusters on the image  
+    markClusters(original_img, gridSize, clusters, obj_names);  
+    // Show the result  
+    cv::imshow("Clusters", original_img);  
+    cv::waitKey(0);  
+}  
+/*
+	std::vector<cv::Mat> slice_the_image;  
+    preprocessImg("/home/ronnieji/ronnieji/Kaggle/train/panda/496bd52415.jpg", 448, 448, slice_the_image);  
+    if (slice_the_image.empty()) {  
+        std::cerr << "Slices dataset is empty!" << std::endl;  
+        return -1;  
+    }  
+    // Example usage  
+    std::vector<std::pair<cv::Mat, unsigned int>> imgSlices(slice_the_image.size());  
+    // Load your slices into imgSlices...  
+    for (size_t i = 0; i < slice_the_image.size(); ++i) {  
+        unsigned int score = (i == 2 || i == 3 || i == 12 || i == 13 || i == 5 || i == 6 || i == 15 || i == 16) ? 1 : 0; // Set score based on condition  
+        imgSlices[i] = {slice_the_image[i], score}; // Assign the slice and its score  
+    }  
+    // Create object names based on slice indices  
+    std::vector<std::pair<std::string, unsigned int>> obj_names = {  
+        {"Apple", 2}, {"Apple", 3}, {"Banana", 5}, {"Banana", 6},  
+        {"Apple", 12}, {"Apple", 13}, {"Banana", 15}, {"Banana", 16}  
+    };  
+    cv::Mat img = cv::imread("/home/ronnieji/ronnieji/Kaggle/train/panda/496bd52415.jpg", cv::IMREAD_COLOR);  
+    if (img.empty()) {  
+        std::cerr << "Error: Image not loaded correctly from path!" << std::endl;  
+        return -1; // Handle the error appropriately  
+    }  
+    // Resize the image  
+    cv::Mat resizeImg;  
+    cv::resize(img, resizeImg, cv::Size(448, 448));    
+    // Call the function  
+    detect_obj_and_draw(resizeImg, imgSlices, obj_names, 64, 448); // Pass the slice size (64 for 64x64 slices)  
+    return 0;  
+ * */
