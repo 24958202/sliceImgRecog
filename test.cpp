@@ -5,8 +5,7 @@
   main folder
        |
   subfolder1, subfolder2,subfolder3...
-  
- g++ /Users/dengfengji/ronnieji/lib/new_cvLib/main/test.cpp -o /Users/dengfengji/ronnieji/lib/new_cvLib/main/test -I/Users/dengfengji/ronnieji/lib/new_cvLib/include -I/Users/dengfengji/ronnieji/lib/new_cvLib/src /Users/dengfengji/ronnieji/lib/new_cvLib/src/*.cpp -I/opt/homebrew/Cellar/opencv/4.10.0_12/include/opencv4 -L/opt/homebrew/Cellar/opencv/4.10.0_12/lib -Wl,-rpath,/opt/homebrew/Cellar/opencv/4.10.0_12/lib -lopencv_core -lopencv_highgui -lopencv_videoio -lopencv_photo -lopencv_features2d -lopencv_imgproc -lopencv_imgcodecs -lopencv_calib3d -lopencv_video -DOPENCV_VERSION=4.10.0_12 -std=c++20
+ -ljpeg -ltbb 
  * */
 #include <iostream>
 #include <string>
