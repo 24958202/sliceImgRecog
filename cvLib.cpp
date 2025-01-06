@@ -38,7 +38,7 @@
 #include "cvLib_subclasses.h"
 #include "cvLib.h"
 const unsigned int MAX_FEATURES = 1000;   // Max number of features to detect
-const float RATIO_THRESH = 0.95f;          // Ratio threshold for matching
+const float RATIO_THRESH = 0.65f;          // Ratio threshold for matching
 const unsigned int DE_THRESHOLD = 10;      // Min matches to consider an object as existing 10
 const unsigned int ReSIZE_IMG_WIDTH = 448;
 const unsigned int ReSIZE_IMG_HEIGHT = 448;
@@ -146,12 +146,12 @@ void cvLib::img_compress(const std::string& input_folder,int quality){
     }
     std::cout << "All jobs are done!" << std::endl;
 }
-void train_process(cvLib_subclasses& cvlib_sub, const std::vector<std::string> img_process, const std::string& sub_folder_name, std::vector<cv::Mat>& sub_folder_imgs, std::mutex& outputMutex){
+void train_process(cvLib_subclasses& cvlib_sub, const std::vector<std::string> img_process, const std::string& sub_folder_name, std::vector<cv::Mat>& sub_folder_imgs, std::mutex& outputMutex, unsigned int thread_id){
 	if(img_process.empty() || sub_folder_name.empty()){
         return;
     }
     for(unsigned int i = 0; i < img_process.size(); ++i){
-        std::cout << "Reading: " << img_process[i] << std::endl;
+        std::cout << "Thread: " << thread_id << " Reading: " << img_process[i] << " , please wait..." << std::endl;
         std::vector<cv::Mat> trained_img1;
         cvlib_sub.preprocessImg(img_process[i],ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT,trained_img1);
         if(!trained_img1.empty()){
@@ -240,6 +240,9 @@ void train_process(cvLib_subclasses& cvlib_sub, const std::vector<std::string> i
                 std::cerr << "cvLib::train_img_occurrences trained_img1_counter is empty!" << std::endl;
             }
         }//!trained_img1.empty()
+		else{
+			std::cout << "preprocessImg returned an empty value!" << std::endl;
+		}
     }//for
 }
 void cvLib::train_img_occurrences(const std::string& images_folder_path, const std::string& output_model_path){
@@ -301,7 +304,7 @@ void cvLib::train_img_occurrences(const std::string& images_folder_path, const s
                             int endLine = (i == numThreads - 1) ? total_file_number : (i + 1) * linesPerThread; 
 							threads.emplace_back([&, startLine, endLine, i]() {  
 								std::vector<cv::Mat> local_trained_result;  
-								train_process(cvlib_sub, std::vector<std::string>(sub_folder_file_list.begin() + startLine, sub_folder_file_list.begin() + endLine), sub_folder_name, local_trained_result, outputMutex);  
+								train_process(cvlib_sub, std::vector<std::string>(sub_folder_file_list.begin() + startLine, sub_folder_file_list.begin() + endLine), sub_folder_name, local_trained_result, outputMutex, i);  
 								if(!local_trained_result.empty()){
 									trained_final_result.insert(trained_final_result.end(),local_trained_result.begin(),local_trained_result.end()); 
 								}
@@ -454,7 +457,7 @@ void cvLib::img_recognition(const std::vector<std::string>& input_images_path, s
                             }  
                         }  
                         if (goodMatches.size() > DE_THRESHOLD) {  
-                            score_count[item.first]++;  
+                            score_count[item.first] += goodMatches.size();  
                         } else {  
                             bad_fish_split_out++;  
                             if (bad_fish_split_out > bad_num) {  

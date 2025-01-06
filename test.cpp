@@ -5,7 +5,8 @@
   main folder
        |
   subfolder1, subfolder2,subfolder3...
- -ljpeg -ltbb 
+  -ljpeg -ltbb
+ 
  * */
 #include <iostream>
 #include <string>
@@ -35,7 +36,7 @@ bool isValidImage(const std::string& img_path){
 }
 void test_image_recognition(){
     std::vector<std::string> testimgs;
-    std::string sub_folder_path = "/home/ronnieji/ronnieji/Kaggle/test"; //"/Users/dengfengji/ronnieji/Kaggle/test";
+    std::string sub_folder_path = "/home/ronnieji/ronnieji/kaggle/test"; //"/Users/dengfengji/ronnieji/Kaggle/test";
     for (const auto& entrySubFolder : std::filesystem::directory_iterator(sub_folder_path)) {  
         if (entrySubFolder.is_regular_file()) {  
             std::string imgFilePath = entrySubFolder.path().string();  
@@ -46,7 +47,7 @@ void test_image_recognition(){
     }
     std::unordered_map<std::string,return_img_info> results;
     cvLib cvl_j;
-    cvl_j.ini_trained_data("/home/ronnieji/ronnieji/16_16_visual/main/model.dat");//load model.dat before img_recognition
+    cvl_j.ini_trained_data("/home/ronnieji/ronnieji/sliceImgRecog-main/main/model.dat");//load model.dat before img_recognition
     cvl_j.img_recognition(
         testimgs,
         results,
@@ -88,8 +89,8 @@ int main(){
      
      cvLib cvl_j;
      cvl_j.train_img_occurrences(
-         "/home/ronnieji/ronnieji/Kaggle/train",
-         "/home/ronnieji/ronnieji/16_16_visual/main/model.dat"
+         "/home/ronnieji/ronnieji/kaggle/train",
+         "/home/ronnieji/ronnieji/sliceImgRecog-main/main/model.dat"
      );     
      test_image_recognition();
 	

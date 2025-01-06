@@ -382,15 +382,15 @@ const unsigned int MAX_FEATURES, const unsigned int ReSIZE_IMG_WIDTH, const unsi
         std::cerr << "Images input are empty." << std::endl;  
         return false;  
     }  
-	cv::Mat img1_resized;
-	cv::Mat img2_resized;
-	cv::resize(img1, img1_resized, cv::Size(ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT));
-	cv::resize(img2, img2_resized, cv::Size(ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT));
+//	cv::Mat img1_resized;
+//	cv::Mat img2_resized;
+//	cv::resize(img1, img1_resized, cv::Size(ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT));
+//	cv::resize(img2, img2_resized, cv::Size(ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT));
     // Use ORB for keypoint detection and description
     std::vector<cv::KeyPoint> keypoints1, keypoints2;  
     cv::Mat descriptors1, descriptors2;  
-    keypoints1 = extractSIFTFeatures(img1_resized,descriptors1, MAX_FEATURES);
-    keypoints2 = extractSIFTFeatures(img2_resized,descriptors2, MAX_FEATURES);
+    keypoints1 = extractSIFTFeatures(img1,descriptors1, MAX_FEATURES);
+    keypoints2 = extractSIFTFeatures(img2,descriptors2, MAX_FEATURES);
     if (descriptors1.empty() || descriptors2.empty()) {
         //std::cerr << "img1_img2_are_matched_cvMat Existing m_img1 or m_img2 has no descriptors." << std::endl;
         return false;
