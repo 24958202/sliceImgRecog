@@ -178,7 +178,7 @@ void cvLib_subclasses::preprocessImg(const std::string& img_path, const unsigned
                 cv::Rect sliceArea(x, y, sliceWidth, sliceHeight);  
                 // Ensure the slice area is valid  
                 if (sliceArea.x + sliceArea.width <= blurredImg.cols && sliceArea.y + sliceArea.height <= blurredImg.rows) {  
-                    cv::Mat slice = blurredImg(sliceArea); // Create a slice  
+                    cv::Mat slice = blurredImg(sliceArea).clone(); // Create a slice  
                     outImg.push_back(slice); // Store slice in output vector  
                 }  
             }  
@@ -235,7 +235,7 @@ std::vector<cv::KeyPoint> cvLib_subclasses::extractSIFTFeatures(const cv::Mat& i
 }
 void cvLib_subclasses::saveModel_keypoint(const std::unordered_map<std::string, std::vector<cv::Mat>>& featureMap, const std::string& filename) {  
     if (filename.empty()) {  
-        return;  
+        throw std::runtime_error("Error: Filename is empty.");  
     }  
     std::ofstream ofs(filename, std::ios::binary);  
     if (!ofs.is_open()) {  
@@ -251,26 +251,28 @@ void cvLib_subclasses::saveModel_keypoint(const std::unordered_map<std::string, 
             size_t imageCount = images.size();  
             ofs.write(reinterpret_cast<const char*>(&imageCount), sizeof(imageCount));  
             for (const auto& img : images) {  
-                if (img.data) { // Check if image data is valid  
-                    // Write image dimensions  
-                    int rows = img.rows;  
-                    int cols = img.cols;  
-                    int type = img.type();  
-                    ofs.write(reinterpret_cast<const char*>(&rows), sizeof(rows));  
-                    ofs.write(reinterpret_cast<const char*>(&cols), sizeof(cols));  
-                    ofs.write(reinterpret_cast<const char*>(&type), sizeof(type));  
-                    // Write image data  
-                    ofs.write(reinterpret_cast<const char*>(img.data), img.total() * img.elemSize());  
-                } else {  
-                    std::cerr << "Invalid image data encountered for class: " << className << std::endl;  
+                if (img.empty()) {  
+                    continue; // Skip empty images  
                 }  
+                // Write image dimensions and type  
+                int rows = img.rows;  
+                int cols = img.cols;  
+                int type = img.type();  
+                ofs.write(reinterpret_cast<const char*>(&rows), sizeof(rows));  
+                ofs.write(reinterpret_cast<const char*>(&cols), sizeof(cols));  
+                ofs.write(reinterpret_cast<const char*>(&type), sizeof(type));  
+                // Write image data  
+                size_t dataSize = img.total() * img.elemSize();  
+                ofs.write(reinterpret_cast<const char*>(img.data), dataSize);  
+                // Debugging output  
+                std::cout << "Serialized matrix: rows=" << rows << ", cols=" << cols << ", type=" << type << ", dataSize=" << dataSize << std::endl;  
             }  
         }  
     } catch (const std::exception& e) {  
         std::cerr << "Error writing to file: " << e.what() << std::endl;  
         throw; // Rethrow the exception after logging  
     }  
-	ofs.close();
+    ofs.close();  
 }
 cv::Mat cvLib_subclasses::computeDescriptors(std::vector<cv::KeyPoint>& keypoints, const unsigned int MAX_FEATURES, const unsigned int ReSIZE_IMG_WIDTH, const unsigned int ReSIZE_IMG_HEIGHT) {
     // Check for empty keypoints
@@ -386,7 +388,7 @@ const unsigned int MAX_FEATURES, const unsigned int ReSIZE_IMG_WIDTH, const unsi
 //	cv::Mat img2_resized;
 //	cv::resize(img1, img1_resized, cv::Size(ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT));
 //	cv::resize(img2, img2_resized, cv::Size(ReSIZE_IMG_WIDTH,ReSIZE_IMG_HEIGHT));
-    // Use ORB for keypoint detection and description
+    // Use SIFT for keypoint detection and description
     std::vector<cv::KeyPoint> keypoints1, keypoints2;  
     cv::Mat descriptors1, descriptors2;  
     keypoints1 = extractSIFTFeatures(img1,descriptors1, MAX_FEATURES);

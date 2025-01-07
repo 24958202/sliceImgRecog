@@ -38,7 +38,7 @@
 #include "cvLib_subclasses.h"
 #include "cvLib.h"
 const unsigned int MAX_FEATURES = 1000;   // Max number of features to detect
-const float RATIO_THRESH = 0.65f;          // Ratio threshold for matching
+const float RATIO_THRESH = 0.8f;          // Ratio threshold for matching
 const unsigned int DE_THRESHOLD = 10;      // Min matches to consider an object as existing 10
 const unsigned int ReSIZE_IMG_WIDTH = 448;
 const unsigned int ReSIZE_IMG_HEIGHT = 448;
@@ -344,6 +344,7 @@ void cvLib::train_img_occurrences(const std::string& images_folder_path, const s
 }
 void cvLib::loadModel_keypoint(std::unordered_map<std::string, std::vector<cv::Mat>>& featureMap, const std::string& filename) {  
     if (filename.empty()) {  
+        std::cerr << "Error: Filename is empty." << std::endl;  
         return;  
     }  
     std::ifstream ifs(filename, std::ios::binary);  
@@ -353,28 +354,53 @@ void cvLib::loadModel_keypoint(std::unordered_map<std::string, std::vector<cv::M
     }  
     try {  
         size_t mapSize;  
-        ifs.read(reinterpret_cast<char*>(&mapSize), sizeof(mapSize));  
+        if (!ifs.read(reinterpret_cast<char*>(&mapSize), sizeof(mapSize))) {  
+            std::cerr << "Error: Failed to read map size." << std::endl;  
+            return;  
+        }  
         for (size_t i = 0; i < mapSize; ++i) {  
             size_t keySize;  
-            ifs.read(reinterpret_cast<char*>(&keySize), sizeof(keySize));  
-            std::string className(keySize, '\0');  
-            ifs.read(&className[0], keySize);  
-            size_t imageCount;  
-            ifs.read(reinterpret_cast<char*>(&imageCount), sizeof(imageCount));  
-            std::vector<cv::Mat> images(imageCount);  
-            for (size_t j = 0; j < imageCount; ++j) {  
-                // Read image dimensions  
-                int rows, cols, type;  
-                ifs.read(reinterpret_cast<char*>(&rows), sizeof(rows));  
-                ifs.read(reinterpret_cast<char*>(&cols), sizeof(cols));  
-                ifs.read(reinterpret_cast<char*>(&type), sizeof(type));  
-                // Create an empty Mat to hold the image  
-                cv::Mat img(rows, cols, type);  
-                // Read image data  
-                ifs.read(reinterpret_cast<char*>(img.data), img.total() * img.elemSize());  
-                images[j] = img; // Store the image in the vector  
+            if (!ifs.read(reinterpret_cast<char*>(&keySize), sizeof(keySize))) {  
+                std::cerr << "Error: Failed to read key size." << std::endl;  
+                return;  
             }  
-            featureMap[className] = images; // Store the vector of images in the map  
+            std::string className(keySize, '\0');  
+            if (!ifs.read(&className[0], keySize)) {  
+                std::cerr << "Error: Failed to read class name." << std::endl;  
+                return;  
+            }  
+            size_t imageCount;  
+            if (!ifs.read(reinterpret_cast<char*>(&imageCount), sizeof(imageCount))) {  
+                std::cerr << "Error: Failed to read image count." << std::endl;  
+                return;  
+            }  
+            std::vector<cv::Mat> images;  
+            images.reserve(imageCount);  
+            for (size_t j = 0; j < imageCount; ++j) {  
+                int rows, cols, type;  
+                if (!ifs.read(reinterpret_cast<char*>(&rows), sizeof(rows)) ||  
+                    !ifs.read(reinterpret_cast<char*>(&cols), sizeof(cols)) ||  
+                    !ifs.read(reinterpret_cast<char*>(&type), sizeof(type))) {  
+                    std::cerr << "Error: Failed to read image dimensions." << std::endl;  
+                    return;  
+                }  
+                // Validate matrix dimensions and type  
+                if (rows <= 0 || cols <= 0 || type < 0) {  
+                    std::cerr << "Error: Invalid matrix dimensions or type. rows=" << rows << ", cols=" << cols << ", type=" << type << std::endl;  
+                    continue; // Skip invalid images  
+                }  
+                cv::Mat img(rows, cols, type);  
+                size_t dataSize = img.total() * img.elemSize();  
+                // Read image data  
+                if (!ifs.read(reinterpret_cast<char*>(img.data), dataSize)) {  
+                    std::cerr << "Error: Failed to read image data. Expected " << dataSize << " bytes." << std::endl;  
+                    return;  
+                }  
+                // Debugging output  
+                std::cout << "Deserialized matrix: rows=" << rows << ", cols=" << cols << ", type=" << type << ", dataSize=" << dataSize << std::endl;  
+                images.push_back(img);  
+            }  
+            featureMap[className] = images;  
         }  
     } catch (const std::exception& e) {  
         std::cerr << "Error reading from file: " << e.what() << std::endl;  
@@ -423,12 +449,13 @@ void cvLib::img_recognition(const std::vector<std::string>& input_images_path, s
             std::unordered_map<std::string, unsigned int> test_slices_totally_count;  
             for (int kk = 0; kk < test_img_slices.size(); ++kk) {  
                 std::unordered_map<std::string, unsigned int> score_count;  
-                // Use ORB for keypoint detection and description  
+                // Use SIFT for keypoint detection and description  
                 cv::Mat descriptors1;  
                 auto keypoints1 = cvlib_sub.extractSIFTFeatures(test_img_slices[kk], descriptors1, MAX_FEATURES);  
-                if (descriptors1.empty()) {  
+                if (descriptors1.empty()) { 
                     continue;  
                 }  
+				std::cout << "Test image slice index : " << kk << " ,start recognizing..." << std::endl;
                 slice_count++;  
                 if (slice_count > first_num) {  
                     slice_count = 0;  
@@ -438,7 +465,7 @@ void cvLib::img_recognition(const std::vector<std::string>& input_images_path, s
                 for (const auto& item : trained_dataset) {  
                     auto item_data = item.second;  
                     for (const auto& item_data_item : item_data) {  
-                        // Use ORB for keypoint detection and description  
+                        // Use SIFT for keypoint detection and description  
                         cv::Mat descriptors2;  
                         auto keypoints2 = cvlib_sub.extractSIFTFeatures(item_data_item, descriptors2, MAX_FEATURES);  
                         if (descriptors2.empty()) {  
@@ -500,7 +527,7 @@ void cvLib::img_recognition(const std::vector<std::string>& input_images_path, s
             std::cerr << "Exception occurred while processing " << test_item << ": " << e.what() << std::endl;  
             continue; // Skip to the next image  
         }  
-    }  
+    } //for 
     std::cout << "Image recognition completed!" << std::endl;  
 }
 void cvLib::checkExistingGestures(const cv::Mat& frame_input, std::string& gesture_catched){
