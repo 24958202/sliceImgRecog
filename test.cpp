@@ -91,7 +91,7 @@ int main(){
      cvl_j.train_img_occurrences(
          "/home/ronnieji/ronnieji/kaggle/train",
          "/home/ronnieji/ronnieji/sliceImgRecog-main/main/model.dat"
-     );     
+     );  
      test_image_recognition();
 	
      //cvl_j.ini_trained_data("/Users/dengfengji/ronnieji/lib/new_cvLib/main/model.dat");

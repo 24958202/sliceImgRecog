@@ -23,6 +23,15 @@ class cvLib_subclasses{
             para3: image quality 0-100
          */
         void compressJPEG(const std::string&, const std::string&, int);
+		/*
+		 *Function to compute infinity norm for  descriptors1 and descriptors2
+		 * para1: descriptors1
+		 * para2: descriptors2
+		 * para3: ratioThresh  //float RATIO_THRESH = 0.8; // Lowe's ratio test threshold  
+		 * para4: deThreshold  // int DE_THRESHOLD = 1;    // Minimum number of good matches required  
+		 * 
+		*/
+		bool matchWithInfinityNorm(const cv::Mat&, const cv::Mat&, float, int);
         /*
          Function to resize and blur input image
          para1: image path 

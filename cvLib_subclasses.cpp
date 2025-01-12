@@ -27,6 +27,18 @@
 #include <stdlib.h>
 #include <jpeglib.h>
 #include "cvLib_subclasses.h"
+// Function to compute the infinity norm (maximum absolute difference) between two descriptors  
+static float computeInfinityNorm(const cv::Mat& descriptor1, const cv::Mat& descriptor2) {  
+    // Ensure the descriptors have the same size  
+    CV_Assert(descriptor1.size() == descriptor2.size());  
+
+    float maxDiff = 0.0f;  
+    for (int i = 0; i < descriptor1.cols; ++i) {  
+        float diff = std::abs(descriptor1.at<float>(0, i) - descriptor2.at<float>(0, i));  
+        maxDiff = std::max(maxDiff, diff);  
+    }  
+    return maxDiff;  
+} 
 bool cvLib_subclasses::isValidImage(const std::string& img_path){
     if(img_path.empty()){
         return false;
@@ -138,6 +150,40 @@ void cvLib_subclasses::compressJPEG(const std::string& inputFilename, const std:
     delete[] buffer;
     std::cout << "JPEG image compressed and saved to " << outputFilename << std::endl;
 }
+// Function to perform KNN matching using cv::NORM_INF  
+bool cvLib_subclasses::matchWithInfinityNorm(const cv::Mat& descriptors1, const cv::Mat& descriptors2, float ratioThresh, int deThreshold) {  
+    std::vector<std::vector<cv::DMatch>> knnMatches;  
+    // Perform a brute-force comparison for each descriptor in descriptors1  
+    for (int i = 0; i < descriptors1.rows; ++i) {  
+        std::vector<cv::DMatch> matchesForOneDescriptor;  
+        for (int j = 0; j < descriptors2.rows; ++j) {  
+            // Compute the infinity norm between the two descriptors  
+            float distance = computeInfinityNorm(descriptors1.row(i), descriptors2.row(j));  
+            // Store the match  
+            matchesForOneDescriptor.push_back(cv::DMatch(i, j, distance));  
+        }  
+        // Sort matches for this descriptor by distance (ascending order)  
+        std::sort(matchesForOneDescriptor.begin(), matchesForOneDescriptor.end(),  
+                  [](const cv::DMatch& a, const cv::DMatch& b) { return a.distance < b.distance; });  
+        // Keep only the top 2 matches (KNN)  
+        if (matchesForOneDescriptor.size() > 2) {  
+            matchesForOneDescriptor.resize(2);  
+        }  
+        knnMatches.push_back(matchesForOneDescriptor);  
+    }  
+    // Apply Lowe's ratio test to filter good matches  
+    std::vector<cv::DMatch> goodMatches;  
+    for (const auto& match : knnMatches) {  
+        if (match.size() > 1 && match[0].distance < ratioThresh * match[1].distance) {  
+            goodMatches.push_back(match[0]);  
+        }  
+    }  
+    // Check if the number of good matches exceeds the threshold  
+    if (goodMatches.size() > deThreshold) {  
+        return true;  
+    }  
+    return false;  
+}  
 void cvLib_subclasses::preprocessImg(const std::string& img_path, const unsigned int ReSIZE_IMG_WIDTH, const unsigned int ReSIZE_IMG_HEIGHT, std::vector<cv::Mat>& outImg) {  
     if (img_path.empty()) {  
         std::cerr << "Error: img_path is empty." << std::endl;  
@@ -352,6 +398,7 @@ bool cvLib_subclasses::img1_img2_are_matched(const std::string& img1, const std:
         /*
          *Start comparing
         */
+		/*
         cv::BFMatcher matcher(cv::NORM_L2);
         std::vector<std::vector<cv::DMatch>> knnMatches;
         matcher.knnMatch(descriptors1, descriptors2, knnMatches, 2);
@@ -366,6 +413,14 @@ bool cvLib_subclasses::img1_img2_are_matched(const std::string& img1, const std:
             return true;
         }
         std::cout << "Did not match, goodMatches.size() : " << goodMatches.size() << std::endl;
+        return false;
+		*/
+		bool result = matchWithInfinityNorm(descriptors1, descriptors2, RATIO_THRESH, DE_THRESHOLD);  
+		if (result) {  
+			std::cout << "Matched."<< std::endl;
+            return true;
+		} 
+		std::cout << "Did not match."<< std::endl;
         return false;
     }
     catch (cv::Exception& ex) {
@@ -400,19 +455,26 @@ const unsigned int MAX_FEATURES, const unsigned int ReSIZE_IMG_WIDTH, const unsi
     /*
      *Start comparing
     */
-    cv::BFMatcher matcher(cv::NORM_L2);
-    std::vector<std::vector<cv::DMatch>> knnMatches;
-    matcher.knnMatch(descriptors1, descriptors2, knnMatches, 2);
-    std::vector<cv::DMatch> goodMatches;
-    for (const auto& match : knnMatches) {
-        if (match.size() > 1 && match[0].distance < RATIO_THRESH * match[1].distance) {
-            goodMatches.push_back(match[0]);
-        }
-    }
-    if (goodMatches.size() > DE_THRESHOLD) {
-        return true;
-    }
-    return false;  
+	
+    cv::BFMatcher matcher(cv::NORM_L2); // Use infinity norm  
+	std::vector<std::vector<cv::DMatch>> knnMatches;  
+	matcher.knnMatch(descriptors1, descriptors2, knnMatches, 2);  
+	std::vector<cv::DMatch> goodMatches;  
+	for (const auto& match : knnMatches) {  
+		if (match.size() > 1 && match[0].distance < RATIO_THRESH * match[1].distance) {  
+			goodMatches.push_back(match[0]);  
+		}  
+	}  
+	if (goodMatches.size() > DE_THRESHOLD) {  
+		return true;  
+	}  
+	return false;
+	
+//	bool result = matchWithInfinityNorm(descriptors1, descriptors2, RATIO_THRESH, DE_THRESHOLD);  
+//	if (result) {  
+//		return true;
+//	} 
+//	return false;
 }
 void cvLib_subclasses::sortAndFilterSlices(std::vector<cv::Mat>& outImg, const double similarityThreshold, const double emptyThreshold) {  
     if (outImg.empty()) {  
@@ -546,10 +608,10 @@ void cvLib_subclasses::markClusters(cv::Mat& image, int gridSize, const std::vec
         // Find the corresponding object name based on the cluster's position  
         for (const auto& obj : obj_names) {  
             // Check if the cluster corresponds to the object's index  
-            if (cluster.x / 64 == obj.second % gridSize && cluster.y / 64 == obj.second / gridSize) {  
+            if (cluster.x / 64 == obj.second % gridSize && cluster.y / 64 == obj.second / gridSize) {  //64
                 // Put text on the upper-left corner of the rectangle  
                 cv::putText(image, obj.first, // Object name  
-                            cv::Point(cluster.x + 5, cluster.y + 20), // Position of the text  
+                            cv::Point(cluster.x + 5, cluster.y + 20), // Position of the text 20 
                             cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1); // Green color  
                 break; // Exit the loop once the object is found  
             }  

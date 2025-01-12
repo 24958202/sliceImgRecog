@@ -474,24 +474,34 @@ void cvLib::img_recognition(const std::vector<std::string>& input_images_path, s
                         /*  
                          * Start comparing  
                          */  
-                        cv::BFMatcher matcher(cv::NORM_L2);  
-                        std::vector<std::vector<cv::DMatch>> knnMatches;  
-                        matcher.knnMatch(descriptors1, descriptors2, knnMatches, 2);  
-                        std::vector<cv::DMatch> goodMatches;  
-                        for (const auto& match : knnMatches) {  
-                            if (match.size() > 1 && match[0].distance < RATIO_THRESH * match[1].distance) {  
-                                goodMatches.push_back(match[0]);  
-                            }  
-                        }  
-                        if (goodMatches.size() > DE_THRESHOLD) {  
-                            score_count[item.first] += goodMatches.size();  
-                        } else {  
-                            bad_fish_split_out++;  
+//                        cv::BFMatcher matcher(cv::NORM_L2);  //cv::NORM_L2
+//                        std::vector<std::vector<cv::DMatch>> knnMatches;  
+//                        matcher.knnMatch(descriptors1, descriptors2, knnMatches, 2);  
+//                        std::vector<cv::DMatch> goodMatches;  
+//                        for (const auto& match : knnMatches) {  
+//                            if (match.size() > 1 && match[0].distance < RATIO_THRESH * match[1].distance) {  //RATIO_THRESH
+//                                goodMatches.push_back(match[0]);  
+//                            }  
+//                        }  
+//                        if (goodMatches.size() > DE_THRESHOLD) {  
+//                            score_count[item.first] += goodMatches.size();
+//                        } else {  
+//                            bad_fish_split_out++;  
+//                            if (bad_fish_split_out > bad_num) {  
+//                                bad_fish_split_out = 0;  
+//                                break; // Break out of the inner loop  
+//                            }  
+//                        }  
+						bool result = cvlib_sub.matchWithInfinityNorm(descriptors1, descriptors2, RATIO_THRESH, DE_THRESHOLD);  
+						if (result) {  
+							score_count[item.first]++;
+						} else {  
+							bad_fish_split_out++;  
                             if (bad_fish_split_out > bad_num) {  
                                 bad_fish_split_out = 0;  
                                 break; // Break out of the inner loop  
-                            }  
-                        }  
+                            }    
+						}  
                     }  
                 }  
                 /*  
@@ -543,7 +553,7 @@ void cvLib::checkExistingGestures(const cv::Mat& frame_input, std::string& gestu
     std::vector<std::pair<std::string, unsigned int>> score_count;
     try {
         cv::Mat resizeImg;
-        cv::resize(frame_input, resizeImg, cv::Size(ReSIZE_IMG_WIDTH, ReSIZE_IMG_HEIGHT));//$$$$$$$$$$$$
+        cv::resize(frame_input, resizeImg, cv::Size(ReSIZE_IMG_WIDTH, ReSIZE_IMG_HEIGHT));
         cv::Mat img_gray;
         cv::cvtColor(resizeImg, img_gray, cv::COLOR_BGR2GRAY);
         cv::GaussianBlur(img_gray, test_img, cv::Size(5, 5), 0);
